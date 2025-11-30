@@ -1,4 +1,138 @@
+async function openFullExperienceIfAvailable() {
+  const expSection = document.querySelector("#experience");
+  if (!expSection) return null;
+
+  // Find footer button container (same as Projects / Awards / Test scores)
+  const button = expSection.closest("section")
+    ?.querySelector(".pvs-list__footer-wrapper a.optional-action-target-wrapper");
+
+  if (!button) return null; // No "See more" button
+
+  const fullUrl = button.getAttribute("href");
+  if (!fullUrl) return null;
+
+  // Open in new tab
+
+  return new Promise(async (resolve, reject) => {
+        const newTab = window.open(fullUrl, "_blank");
+
+        if (!newTab) {
+            return reject("Popup blocked!");
+        }
+        
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Check if page loaded
+        const checkLoaded = setInterval(() => {
+            try {
+                // If page is fully loaded and accessible
+                if (newTab.document && newTab.document.readyState === "complete") {
+                    
+                    clearInterval(checkLoaded);
+
+                    // Inject scraping function into the new tab
+                    const result =  scrapeExperienceInNewTab(newTab.document);
+                    
+                    resolve({experience:result, url:fullUrl});
+                }
+            } catch (err) {
+                // Cross-origin block NOT possible for LinkedIn → same domain.
+            }
+        }, 500);
+    });
+ 
+}
+
+function scrapeExperienceInNewTab(doc) {
+    const experienceItems = [];
+    
+    const list = doc.querySelector("section > div > div > div > ul");
+    if (!list) return experienceItems;
+
+    const items = list.querySelectorAll(":scope > li");
+
+    items.forEach(li => {
+        const exp = {};
+
+        // TITLE
+        const titleEl = li.querySelector(
+            '.mr1.hoverable-link-text.t-bold span[aria-hidden="true"]'
+        );
+
+        // COMPANY
+        const companyEl = li.querySelector(
+            '.t-14.t-normal span[aria-hidden="true"]'
+        );
+
+        // DURATION
+        const durationEl = li.querySelector(
+            '.t-black--light .pvs-entity__caption-wrapper[aria-hidden="true"]'
+        );
+
+        if (titleEl) exp.title = titleEl.textContent.trim();
+        if (companyEl) exp.company = companyEl.textContent.trim();
+        if (durationEl) exp.duration = durationEl.textContent.trim();
+
+        // -------------------------------
+        // 🔥 DESCRIPTION HANDLING
+        // -------------------------------
+
+        // 1. direct description (usually one block)
+        const descEl = li.querySelector(
+            '.t-14.t-normal.t-black span[aria-hidden="true"]'
+        );
+
+        if (descEl) {
+            const txt = descEl.textContent.trim();
+            if (txt && !txt.startsWith("Skills:")) {
+                exp.description = txt;
+            }
+        }
+
+        // 2. nested description list items
+        const nestedDescItems = li.querySelectorAll(
+            ".pvs-entity__sub-components > ul > li"
+        );
+
+        nestedDescItems.forEach(subLi => {
+            const textEl = subLi.querySelector(
+                '.t-14.t-normal.t-black span[aria-hidden="true"]'
+            );
+            if (textEl) {
+                const txt = textEl.textContent.trim();
+                if (!txt) return;
+
+                if (txt.startsWith("Skills:")) {
+                    // optional skills capture
+                    exp.skills = txt.replace("Skills:", "").trim();
+                } else {
+                    // combine multiple description lines
+                    if (exp.description) {
+                        exp.description += "\n" + txt;
+                    } else {
+                        exp.description = txt;
+                    }
+                }
+            }
+        });
+
+        experienceItems.push(exp);
+    });
+
+    return experienceItems;
+}
+
+
+
 async function scrapeExperience() {
+
+   const result = await openFullExperienceIfAvailable();
+
+  if (result?.experience?.length>0) {
+    console.log("Full experience page opened:", result.url);
+    // You can stop scraping here and let backend fetch & parse this URL
+    return result.experience;
+  }
+
   const experienceItems = [];
   const experienceSection = document.querySelector("#experience");
   if (experienceSection) {
@@ -59,7 +193,7 @@ async function scrapeExperience() {
             if (locationElement)
               exp.location = locationElement.innerText.trim();
 
-            console.log("huraaaa----", exp);
+            //console.log("huraaaa----", exp);
             // Description and Skills for nested role
             const roleSubComponents = subItem.querySelector(
               ".pvs-entity__sub-components"
@@ -98,7 +232,7 @@ async function scrapeExperience() {
                 }
               });
             }
-            console.log("here u bitit---", exp);
+            //console.log("here u bitit---", exp);
             if (exp.title) experienceItems.push(exp);
           });
         } else {
