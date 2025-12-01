@@ -27,6 +27,10 @@
         "scrapers/experience.js",
         "scrapers/education.js",
         "scrapers/skills.js",
+        "scrapers/projects.js",
+        "scrapers/publications.js",
+        "scrapers/honorsAndAwards.js",
+        "scrapers/testScores.js",
         "content.js"
       ]
     }
